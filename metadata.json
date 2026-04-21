@@ -1,0 +1,15 @@
+{
+  "name": "Berrin’in Yerleri",
+  "description": "Berrin Sürücü için özel olarak tasarlanmış, dünya çapında gezdiğiniz ve gitmek istediğiniz yerleri işaretleyip anılarınızı saklayabileceğiniz modern bir seyahat günlüğü platformu.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "Interactive World Map",
+    "Personal Travel Diary",
+    "Collaborative Pinning",
+    "Photo Galleries",
+    "Travel Statistics"
+  ]
+}

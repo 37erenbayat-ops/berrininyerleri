@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "theme": { "type": "string", "enum": ["light", "dark"] },
+        "accentColor": { "type": "string" }
+      },
+      "required": ["displayName", "email", "createdAt"]
+    },
+    "Pin": {
+      "title": "Pin",
+      "description": "A travel pin on the map",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "type": { "type": "string", "enum": ["visited", "wishlist"] },
+        "date": { "type": "string", "format": "date" },
+        "notes": { "type": "string" },
+        "rating": { "type": "number" },
+        "images": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdBy": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "isFavorite": { "type": "boolean" }
+      },
+      "required": ["title", "location", "type", "createdBy", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a pin",
+      "type": "object",
+      "properties": {
+        "pinId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pinId", "userId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of users"
+    },
+    "/pins/{pinId}": {
+      "schema": "Pin",
+      "description": "Collection of travel pins"
+    },
+    "/pins/{pinId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Sub-collection of comments for a pin"
+    }
+  }
+}

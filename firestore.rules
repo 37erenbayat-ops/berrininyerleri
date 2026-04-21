@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.displayName is string && data.displayName.size() <= 100 &&
+               data.email is string && data.email.size() <= 100 &&
+               (data.accentColor == null || (data.accentColor is string && data.accentColor.size() <= 20)) &&
+               (data.theme == null || data.theme in ['light', 'dark']);
+      }
+
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && 
+                      isValidUser(incoming()) &&
+                      incoming().keys().hasAll(['displayName', 'email', 'createdAt']) &&
+                      (request.auth.token.email == null || incoming().email == request.auth.token.email);
+      allow update: if isOwner(userId) && 
+                      isValidUser(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'theme', 'accentColor', 'updatedAt']);
+    }
+
+    // Pins Collection
+    match /pins/{pinId} {
+      function isValidPin(data) {
+        return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+               data.type in ['visited', 'wishlist'] &&
+               data.location.lat is number && data.location.lng is number;
+      }
+
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && 
+                      isValidPin(incoming()) &&
+                      incoming().createdBy == request.auth.uid &&
+                      incoming().createdAt == request.time;
+      allow update: if isSignedIn() && 
+                      isValidPin(incoming()) &&
+                      (isOwner(existing().createdBy) || isOwner(incoming().createdBy)) &&
+                      incoming().createdBy == existing().createdBy &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().updatedAt == request.time &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'type', 'notes', 'rating', 'images', 'location', 'updatedAt', 'createdByName', 'isFavorite']);
+      allow delete: if isOwner(existing().createdBy);
+    }
+
+    // Comments sub-collection
+    match /pins/{pinId}/comments/{commentId} {
+      allow read: if isSignedIn();
+      allow create: if isEmailVerified() && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().createdAt == request.time &&
+                      exists(/databases/$(database)/documents/pins/$(pinId));
+      allow delete: if isOwner(existing().userId) || isOwner(get(/databases/$(database)/documents/pins/$(pinId)).data.createdBy);
+    }
+  }
+}
