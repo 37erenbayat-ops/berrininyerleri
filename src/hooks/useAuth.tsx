@@ -59,8 +59,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      console.error("Login error:", error);
+      if (error.code === 'auth/popup-blocked') {
+        alert("Giriş penceresi tarayıcı tarafından engellendi. Lütfen pop-up'lara izin verin.");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert("Bu alan adı (domain) Firebase üzerinde yetkilendirilmemiş. Lütfen Firebase Console -> Auth -> Settings -> Authorized Domains kısmına Vercel URL'nizi ekleyin.");
+      } else {
+        alert("Giriş yaparken bir hata oluştu: " + error.message);
+      }
+    }
   };
 
   const logout = async () => {
