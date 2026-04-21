@@ -256,6 +256,7 @@ export default function App() {
               >
                 <MapView 
                   pins={filteredPins} 
+                  tempPin={selectedPin}
                   onMapClick={handleMapClick}
                   onPinClick={handlePinClick}
                 />

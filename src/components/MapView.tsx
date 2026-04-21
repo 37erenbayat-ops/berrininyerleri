@@ -17,6 +17,7 @@ L.Icon.Default.mergeOptions({
 
 interface MapViewProps {
   pins: Pin[];
+  tempPin: Partial<Pin> | null;
   onMapClick: (lat: number, lng: number) => void;
   onPinClick: (pin: Pin) => void;
 }
@@ -30,7 +31,7 @@ const MapEvents = ({ onClick }: { onClick: (lat: number, lng: number) => void })
   return null;
 };
 
-export const MapView: React.FC<MapViewProps> = ({ pins, onMapClick, onPinClick }) => {
+export const MapView: React.FC<MapViewProps> = ({ pins, tempPin, onMapClick, onPinClick }) => {
   const visitedIcon = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
@@ -42,6 +43,15 @@ export const MapView: React.FC<MapViewProps> = ({ pins, onMapClick, onPinClick }
 
   const wishlistIcon = new L.Icon({
     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+  });
+
+  const tempIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
     iconSize: [25, 41],
     iconAnchor: [12, 41],
@@ -80,6 +90,19 @@ export const MapView: React.FC<MapViewProps> = ({ pins, onMapClick, onPinClick }
             </Popup>
           </Marker>
         ))}
+
+        {tempPin && !tempPin.id && tempPin.location && (
+          <Marker 
+            position={[tempPin.location.lat, tempPin.location.lng]}
+            icon={tempIcon}
+          >
+             <Popup autoOpen>
+              <div className="p-1 font-sans">
+                <h3 className="font-bold text-slate-800 italic">İşaretleniyor...</h3>
+              </div>
+            </Popup>
+          </Marker>
+        )}
       </MapContainer>
 
       {/* Map Overlay Controls - Glassmorphism */}
