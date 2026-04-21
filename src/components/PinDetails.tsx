@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, Trash2, Calendar, Star, MapPin, Image as ImageIcon, MessageSquare, Plus } from 'lucide-react';
 import { Pin, PinType } from '../types';
-import { formatDate } from '../lib/utils';
+import { formatDate, cn } from '../lib/utils';
+import { GalleryViewer } from './GalleryViewer';
 
 interface PinDetailsProps {
   pin: Partial<Pin>;
@@ -16,11 +17,13 @@ export const PinDetails: React.FC<PinDetailsProps> = ({ pin, isOpen, onClose, on
   const [formData, setFormData] = useState<Partial<Pin>>(pin);
   const [isEditing, setIsEditing] = useState(!pin.id);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   React.useEffect(() => {
     setFormData(pin);
     setIsEditing(!pin.id);
     setShowDeleteConfirm(false);
+    setViewerIndex(null);
   }, [pin]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -34,12 +37,88 @@ export const PinDetails: React.FC<PinDetailsProps> = ({ pin, isOpen, onClose, on
     setFormData({ ...formData, rating: r });
   };
 
-  const handleAddImage = () => {
-    const url = window.prompt('Görsel URL\'sini girin:');
-    if (url) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleTriggerUpload = () => {
+    if (!isEditing) return;
+    fileInputRef.current?.click();
+  };
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Max dimensions
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Compress quality to 0.6
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
+        };
+      };
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const currentImages = formData.images || [];
+    let processedImages: string[] = [];
+    let totalEstimatedSize = JSON.stringify(formData).length;
+
+    for (const file of files as File[]) {
+      // Preliminary check to avoid trying to process massive files
+      if (file.size > 15 * 1024 * 1024) { 
+        console.warn(`File ${file.name} is too large (>15MB). Skipping.`);
+        continue;
+      }
+
+      try {
+        const compressedBase64 = await compressImage(file as File);
+        const newTotalSize = totalEstimatedSize + compressedBase64.length;
+        
+        if (newTotalSize > 900 * 1024) { // Buffer for Firestore's 1MB limit
+          alert('Bazı görseller eklenemedi çünkü Firestore limitlerine (1MB) ulaşıldı.');
+          break;
+        }
+
+        processedImages.push(compressedBase64);
+        totalEstimatedSize = newTotalSize;
+      } catch (err) {
+        console.error("Görsel işleme hatası:", err);
+      }
+    }
+
+    if (processedImages.length > 0) {
       setFormData(prev => ({
         ...prev,
-        images: [...(prev.images || []), url]
+        images: [...(prev.images || []), ...processedImages]
       }));
     }
   };
@@ -52,10 +131,31 @@ export const PinDetails: React.FC<PinDetailsProps> = ({ pin, isOpen, onClose, on
     }));
   };
 
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (viewerIndex === null || !formData.images) return;
+    setViewerIndex((viewerIndex + 1) % formData.images.length);
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (viewerIndex === null || !formData.images) return;
+    setViewerIndex((viewerIndex - 1 + formData.images.length) % formData.images.length);
+  };
+
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
+    <>
+      <GalleryViewer 
+        images={formData.images}
+        index={viewerIndex}
+        onClose={() => setViewerIndex(null)}
+        onPrev={prevImage}
+        onNext={nextImage}
+      />
+
+      <AnimatePresence>
       <div className="fixed inset-0 z-[2000] flex items-center justify-end p-6 pointer-events-none">
         <motion.div
           initial={{ x: '100%', opacity: 0 }}
@@ -178,18 +278,26 @@ export const PinDetails: React.FC<PinDetailsProps> = ({ pin, isOpen, onClose, on
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block flex items-center justify-between">
                   Galeri
                   {isEditing && (
-                    <button 
-                      type="button" 
-                      onClick={handleAddImage}
-                      className="text-[10px] text-accent hover:underline flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" /> Ekle
-                    </button>
+                    <input 
+                      type="file" 
+                      multiple
+                      ref={fileInputRef} 
+                      onChange={handleFileUpload} 
+                      accept="image/*" 
+                      className="hidden" 
+                    />
                   )}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  {formData.images?.filter(img => !!img).length ? formData.images.filter(img => !!img).map((img, i) => (
-                    <div key={i} className="aspect-square rounded-xl overflow-hidden bg-slate-200 relative group border border-white/50 shadow-sm">
+                  {formData.images?.filter(img => !!img).map((img, i) => (
+                    <div 
+                      key={i} 
+                      onClick={() => !isEditing && setViewerIndex(i)}
+                      className={cn(
+                        "aspect-square rounded-xl overflow-hidden bg-slate-200 relative group border border-white/50 shadow-sm",
+                        !isEditing && "cursor-zoom-in"
+                      )}
+                    >
                       <img src={img || undefined} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       {isEditing && (
                         <button
@@ -201,7 +309,21 @@ export const PinDetails: React.FC<PinDetailsProps> = ({ pin, isOpen, onClose, on
                         </button>
                       )}
                     </div>
-                  )) : (
+                  ))}
+
+                  {/* Add Image Box - Visible in edit mode or when gallery is empty */}
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={handleTriggerUpload}
+                      className="aspect-square rounded-xl bg-slate-200/30 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 hover:border-accent/50 hover:bg-white transition-all group"
+                    >
+                      <Plus className="w-6 h-6 mb-1 text-slate-300 group-hover:text-accent group-hover:scale-110 transition-all" />
+                      <span className="text-[9px] font-black uppercase tracking-widest group-hover:text-accent">Ekle</span>
+                    </button>
+                  )}
+
+                  {!isEditing && (!formData.images || formData.images.filter(img => !!img).length === 0) && (
                     <div className="col-span-2 py-10 bg-slate-200/30 border border-slate-200/50 rounded-2xl flex flex-col items-center justify-center text-slate-400">
                       <ImageIcon className="w-10 h-10 mb-2 opacity-10" />
                       <span className="text-[10px] font-bold uppercase tracking-widest">Henüz görsel yok</span>
@@ -291,7 +413,8 @@ export const PinDetails: React.FC<PinDetailsProps> = ({ pin, isOpen, onClose, on
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 };
 

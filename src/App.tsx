@@ -19,6 +19,7 @@ import { useAuth } from './hooks/useAuth';
 import { usePins } from './hooks/usePins';
 import { MapView } from './components/MapView';
 import { PinDetails } from './components/PinDetails';
+import { GalleryViewer } from './components/GalleryViewer';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Pin } from './types';
 import { cn, formatDate } from './lib/utils';
@@ -32,6 +33,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'visited' | 'wishlist'>('all');
+  const [listGalleryTarget, setListGalleryTarget] = useState<{ images: string[], index: number } | null>(null);
 
   React.useEffect(() => {
     if (profile?.accentColor) {
@@ -269,92 +271,111 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="w-full h-full overflow-y-auto pt-32 pb-32 px-8 custom-scrollbar"
               >
-                <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {filteredPins.length === 0 ? (
-                    <div className="col-span-full py-20 text-center flex flex-col items-center justify-center text-slate-400">
-                      <Globe className="w-20 h-20 mb-6 opacity-10" />
-                      <p className="text-lg font-medium">Buralar henüz keşfedilmemiş...</p>
+                <div className="max-w-7xl mx-auto">
+                  {/* List View Stats */}
+                  <div className="flex gap-4 mb-8">
+                    <div className="glass px-6 py-3 rounded-2xl shadow-sm flex items-center gap-4">
+                      <div className="text-2xl font-black text-accent">{stats.visited}</div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-l border-slate-200/50 pl-4">Gidildi</div>
                     </div>
-                  ) : filteredPins.map(pin => (
-                    <motion.div
-                      layoutId={pin.id}
-                      key={pin.id}
-                      onClick={() => handlePinClick(pin)}
-                      className="group glass p-6 flex flex-col gap-5 cursor-pointer hover:scale-[1.02] transition-transform duration-300"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className={cn(
-                          "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white",
-                          pin.type === 'visited' ? "bg-visited" : "bg-wishlist"
-                        )}>
-                          {pin.type === 'visited' ? 'Gidildi' : 'Hayal'}
+                    <div className="glass px-6 py-3 rounded-2xl shadow-sm flex items-center gap-4">
+                      <div className="text-2xl font-black text-accent">{stats.wishlist}</div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-l border-slate-200/50 pl-4">Gidilecek</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {filteredPins.length === 0 ? (
+                      <div className="col-span-full py-20 text-center flex flex-col items-center justify-center text-slate-400">
+                        <Globe className="w-20 h-20 mb-6 opacity-10" />
+                        <p className="text-lg font-medium">Buralar henüz keşfedilmemiş...</p>
+                      </div>
+                    ) : filteredPins.map(pin => (
+                      <motion.div
+                        layoutId={pin.id}
+                        key={pin.id}
+                        onClick={() => handlePinClick(pin)}
+                        className="group glass p-6 flex flex-col gap-4 cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className={cn(
+                            "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white",
+                            pin.type === 'visited' ? "bg-visited" : "bg-wishlist"
+                          )}>
+                            {pin.type === 'visited' ? 'Gidildi' : 'Hayal'}
+                          </div>
+                          {pin.rating && pin.rating > 0 && (
+                            <div className="flex items-center gap-1 text-amber-400">
+                              {[...Array(5)].map((_, i) => (
+                                <Star key={i} className={cn("w-3 h-3", i < pin.rating! ? "fill-current" : "text-slate-300")} />
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {pin.rating && pin.rating > 0 && (
-                          <div className="flex items-center gap-1 text-amber-400">
-                            {[...Array(5)].map((_, i) => (
-                              <Star key={i} className={cn("w-3 h-3", i < pin.rating! ? "fill-current" : "text-slate-300")} />
+                        
+                        {/* Image Previews in List Card */}
+                        {pin.images && pin.images.length > 0 && (
+                          <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                            {pin.images.map((img, idx) => (
+                              <div 
+                                key={idx} 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setListGalleryTarget({ images: pin.images!, index: idx });
+                                }}
+                                className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border border-white/30 hover:scale-105 transition-transform"
+                              >
+                                <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              </div>
                             ))}
                           </div>
                         )}
-                      </div>
-                      
-                      <h3 className="text-xl font-bold text-slate-900 line-clamp-1">
-                        {pin.title}
-                      </h3>
-                      
-                      <p className="text-sm text-slate-500 line-clamp-3 leading-relaxed h-15">
-                        {pin.notes || 'Anı henüz yazılmamış...'}
-                      </p>
 
-                      <div className="mt-auto pt-5 flex items-center justify-between border-t border-slate-200/50">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-accent" />
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-                            {pin.date ? formatDate(pin.date) : 'Tarih Yok'}
-                          </span>
+                        <h3 className="text-xl font-bold text-slate-900 line-clamp-1">
+                          {pin.title}
+                        </h3>
+                        
+                        <p className="text-sm text-slate-500 line-clamp-3 leading-relaxed h-15">
+                          {pin.notes || 'Anı henüz yazılmamış...'}
+                        </p>
+
+                        <div className="mt-auto pt-5 flex items-center justify-between border-t border-slate-200/50">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-3.5 h-3.5 text-accent" />
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                              {pin.date ? formatDate(pin.date) : 'Tarih Yok'}
+                            </span>
+                          </div>
+                          {pin.isFavorite && <Heart className="w-5 h-5 text-rose-400 fill-rose-400" />}
                         </div>
-                        {pin.isFavorite && <Heart className="w-5 h-5 text-rose-400 fill-rose-400" />}
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-
-        {/* Stats Overlay - Floating Panels */}
-        <div className="absolute left-8 top-32 flex flex-col gap-4 pointer-events-none z-30">
-          <motion.div 
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="glass px-6 py-4 rounded-2xl shadow-xl flex flex-col items-center min-w-[140px]"
-          >
-            <div className="text-2xl font-black text-accent leading-none">{stats.visited}</div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Gidilen Yerler</div>
-          </motion.div>
-          <motion.div 
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="glass px-6 py-4 rounded-2xl shadow-xl flex flex-col items-center min-w-[140px]"
-          >
-            <div className="text-2xl font-black text-accent leading-none">{stats.countries}</div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Ülkeler</div>
-          </motion.div>
-          <motion.div 
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="glass px-6 py-4 rounded-2xl shadow-xl flex flex-col items-center min-w-[140px]"
-          >
-            <div className="text-2xl font-black text-accent leading-none">{stats.wishlist}</div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Hedefler</div>
-          </motion.div>
-        </div>
       </main>
 
+
+      <GalleryViewer 
+        images={listGalleryTarget?.images}
+        index={listGalleryTarget?.index ?? null}
+        onClose={() => setListGalleryTarget(null)}
+        onPrev={(e) => {
+          e.stopPropagation();
+          if (!listGalleryTarget) return;
+          const nextIdx = (listGalleryTarget.index - 1 + listGalleryTarget.images.length) % listGalleryTarget.images.length;
+          setListGalleryTarget({ ...listGalleryTarget, index: nextIdx });
+        }}
+        onNext={(e) => {
+          e.stopPropagation();
+          if (!listGalleryTarget) return;
+          const nextIdx = (listGalleryTarget.index + 1) % listGalleryTarget.images.length;
+          setListGalleryTarget({ ...listGalleryTarget, index: nextIdx });
+        }}
+      />
 
       {/* Detail & Add Panel */}
       <PinDetails 
